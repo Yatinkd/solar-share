@@ -25,7 +25,7 @@ Upload all files to the repository root
 Go to Settings → Pages
 Enable Pages on the main branch
 Site will be live at:
-https://your-username.github.io/your-repo/
+https://yatinkd.github.io/solar-share/
 🧪 Local Testing
 Just open index.html in any browser
 OR run:
