@@ -3,50 +3,155 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>SolarShare — Submit Rooftop (Client-only)</title>
+<title>SolarShare — Single File Demo</title>
+
+<!-- Bootstrap -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<!-- Leaflet css -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
 <style>
-  body{background:#f7faf7;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;padding:28px}
-  .card{border-radius:12px;box-shadow:0 12px 30px rgba(15,23,42,0.06)}
-  .brand{color:#0d6f3a;font-weight:800}
-  .muted{color:#6b7280}
-  .help{font-size:.9rem;color:#475569}
+  :root{--accent:#0d6f3a;--muted:#6b7280;--glass:rgba(255,255,255,0.85)}
+  body{background:linear-gradient(180deg,#f7fbf7 0%, #f0f5f3 100%);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;padding:22px}
+  .card{border-radius:12px;box-shadow:0 10px 28px rgba(15,23,42,0.06)}
+  .brand{color:var(--accent);font-weight:800}
+  .muted{color:var(--muted)}
+  #map{height:320px;border-radius:10px;overflow:hidden}
+  .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+  .metric{background:var(--glass);border-radius:10px;padding:12px;text-align:center}
+  .metric .num{font-size:20px;font-weight:800;color:var(--accent)}
+  .suit-badge{padding:8px 14px;border-radius:999px;color:#fff;font-weight:700;display:inline-block}
+  .suit-high{background:linear-gradient(90deg,#0ea45a,#057a38)} .suit-med{background:linear-gradient(90deg,#f59e0b,#d97706)} .suit-low{background:linear-gradient(90deg,#ef4444,#b91c1c)}
+  footer{margin-top:18px;text-align:center;color:#6b7280;font-size:13px}
+  @media (max-width:900px){ .metrics{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
-<div class="container" style="max-width:900px">
+
+<div class="container" style="max-width:980px">
+
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <div><div class="brand">SolarShare</div><div class="muted">Quick rooftop suitability analyzer — client-only</div></div>
-    <a href="results.html" class="btn btn-outline-secondary btn-sm">View last result</a>
+    <div>
+      <div class="brand">SolarShare</div>
+      <div class="muted">Rooftop suitability — client-only demo</div>
+    </div>
+    <div id="topActions">
+      <!-- Top actions change depending on view -->
+    </div>
   </div>
 
-  <div class="card p-4 mb-3">
+  <!-- FORM SECTION -->
+  <div id="formSection" class="card p-4 mb-3">
     <h5>Enter rooftop details</h5>
-    <p class="help">No backend. Everything is calculated in your browser and shown on the result page.</p>
+    <p class="text-muted small">Everything is calculated in your browser — nothing is stored.</p>
 
     <form id="submitForm" class="row g-3">
-      <div class="col-md-6"><label class="form-label">Your name</label><input id="owner" required class="form-control" placeholder="e.g. Ravi"></div>
-      <div class="col-md-6"><label class="form-label">Area (sq.ft)</label><input id="area" type="number" required class="form-control" placeholder="e.g. 200"></div>
-      <div class="col-md-6"><label class="form-label">Location (city / pincode)</label><input id="location" required class="form-control" placeholder="Bengaluru, 560001"></div>
-      <div class="col-md-3"><label class="form-label">Avg sun hours/day</label><input id="sunHours" type="number" step="0.1" class="form-control" value="5.5"></div>
-      <div class="col-md-3"><label class="form-label">Shade</label><select id="shade" class="form-select"><option value="no">No</option><option value="partial">Partial</option><option value="yes">Yes</option></select></div>
+      <div class="col-md-6">
+        <label class="form-label">Your name</label>
+        <input id="owner" required class="form-control" placeholder="e.g. Ravi">
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">Area (sq.ft)</label>
+        <input id="area" type="number" required class="form-control" placeholder="e.g. 200">
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">Location (city / pincode)</label>
+        <input id="location" required class="form-control" placeholder="Bengaluru, 560001">
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label">Avg sun hours/day</label>
+        <input id="sunHours" type="number" step="0.1" class="form-control" value="5.5">
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label">Shade</label>
+        <select id="shade" class="form-select">
+          <option value="no">No</option>
+          <option value="partial">Partial</option>
+          <option value="yes">Yes</option>
+        </select>
+      </div>
 
       <div class="col-12">
         <div id="msg"></div>
         <div class="d-flex gap-2">
           <button class="btn btn-success" type="submit">Analyze & Show Results</button>
           <button id="demoBtn" type="button" class="btn btn-outline-primary">Fill demo data</button>
+          <button id="clearBtn" type="button" class="btn btn-outline-secondary">Clear</button>
         </div>
       </div>
     </form>
   </div>
 
-  <div class="text-muted small">This is a demo: nothing is stored. If you later want to save submissions to Google Sheets, I can give the Apps Script code.</div>
+  <!-- RESULT SECTION (hidden initially) -->
+  <div id="resultSection" class="card p-3 mb-3" style="display:none">
+    <div class="d-flex justify-content-between align-items-start mb-2">
+      <div>
+        <div style="font-size:20px;font-weight:800" id="resultTitle">Analysis Result</div>
+        <div class="muted small">Summary of rooftop potential & impact</div>
+      </div>
+      <div class="text-end">
+        <button id="backBtn" class="btn btn-outline-secondary btn-sm">← Back</button>
+        <button id="printBtn" class="btn btn-sm btn-primary ms-2">Download Report</button>
+      </div>
+    </div>
+
+    <div class="metrics mb-3">
+      <div class="metric"><div class="num" id="kwVal">— kW</div><div class="muted" style="font-size:13px">Estimated Capacity</div></div>
+      <div class="metric"><div class="num" id="kwhVal">— kWh</div><div class="muted" style="font-size:13px">Annual Energy</div></div>
+      <div class="metric"><div class="num" id="co2Val">— t/yr</div><div class="muted" style="font-size:13px">CO₂ Saved / year</div></div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <div style="font-size:14px;color:var(--muted)">Estimated Money Saved (yearly)</div>
+        <div style="font-size:26px;font-weight:800;color:#0b5dd7" id="moneyVal">—</div>
+      </div>
+      <div class="text-end">
+        <div id="suitabilityBadge" class="suit-badge suit-high">—</div>
+        <div class="muted small mt-1" id="scoreText">Suitability: —</div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-lg-8">
+        <div class="card p-2">
+          <h6 class="mb-2">Location & Visualization</h6>
+          <div id="map"></div>
+        </div>
+      </div>
+
+      <div class="col-lg-4">
+        <div class="card p-2">
+          <h6 class="mb-2">Details</h6>
+          <div class="muted small mb-2">Owner / location</div>
+          <div id="ownerInfo" style="font-weight:700;margin-bottom:8px">—</div>
+
+          <div class="muted small">Inputs</div>
+          <ul class="muted small" id="inputList" style="padding-left:18px;margin-top:6px"></ul>
+
+          <hr>
+          <h6>Why this matters</h6>
+          <p class="muted small">Distributed rooftop solar reduces grid load and contributes to renewable targets.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>SolarShare • demo — client-only. No data is stored anywhere.</footer>
 </div>
 
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Bootstrap bundle -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
 <script>
-/* CLIENT-SIDE CALC (no backend) */
-function areaToKW(area){ return Math.max(0.5, (area/100)*1.5); } // 100 sq.ft -> ~1.5 kW
+/* --- calculation helpers --- */
+function areaToKW(area){ return Math.max(0.5, (area/100)*1.5); } // 100 sq.ft ~ 1.5 kW
 function annualKWh(kw,sun){ return Math.round(kw * sun * 365 * 0.75); } // PR 0.75
 function kWhToCO2(kwh){ return Math.round((kwh * 0.82)/1000 * 100)/100; } // tonnes/yr
 function computeScore(area, sunHours, shade){
@@ -59,11 +164,29 @@ function computeScore(area, sunHours, shade){
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
-const form = document.getElementById('submitForm');
+/* --- DOM --- */
+const formSection = document.getElementById('formSection');
+const resultSection = document.getElementById('resultSection');
+const submitForm = document.getElementById('submitForm');
 const msg = document.getElementById('msg');
+const demoBtn = document.getElementById('demoBtn');
+const clearBtn = document.getElementById('clearBtn');
+const backBtn = document.getElementById('backBtn');
+const printBtn = document.getElementById('printBtn');
 
-form.addEventListener('submit', (e)=>{
+/* map variable */
+let map = null;
+let marker = null;
+
+function setMsg(text, kind='info'){
+  const color = kind==='success' ? 'success' : kind==='danger' ? 'danger' : kind==='warning' ? 'warning' : 'info';
+  msg.innerHTML = `<div class="alert alert-${color}">${text}</div>`;
+}
+
+/* form submit */
+submitForm.addEventListener('submit', (e)=>{
   e.preventDefault();
+  setMsg('');
   const owner = document.getElementById('owner').value.trim();
   const area = Number(document.getElementById('area').value);
   const location = document.getElementById('location').value.trim();
@@ -72,39 +195,21 @@ form.addEventListener('submit', (e)=>{
 
   if(!owner || !area || !location){ setMsg('Please fill required fields','warning'); return; }
 
-  // compute locally
-  const kw = areaToKW(area);
-  const annual = annualKWh(kw, sunHours);
-  const co2 = kWhToCO2(annual);
+  // compute
+  const kw = Number(areaToKW(area).toFixed(2));
+  const annual = Number(annualKWh(kw, sunHours));
+  const co2 = Number(kWhToCO2(annual));
   const score = computeScore(area, sunHours, shade);
 
-  // estimate money saved (example tariff)
-  const tariff = 9; // ₹ per kWh (change if you want)
+  const tariff = 9; // ₹/kWh example
   const money = Math.round(annual * tariff);
 
-  // redirect to results page with params (no storage anywhere)
-  const params = new URLSearchParams({
-    owner: owner,
-    location: location,
-    area: area,
-    kw: kw,
-    kwh: annual,
-    co2: co2,
-    money: money,
-    lat: '', // optional: we don't geocode here
-    lng: '',
-    suit: score
-  });
-  setMsg('Calculated — opening result page...','success');
-  setTimeout(()=> window.location.href = 'results.html?' + params.toString(), 600);
+  // show result section
+  showResults({ owner, location, area, sunHours, shade, kw, annual, co2, score, money });
 });
 
-function setMsg(text, kind){
-  const color = kind==='success' ? 'success' : kind==='danger' ? 'danger' : kind==='warning' ? 'warning' : 'info';
-  msg.innerHTML = `<div class="alert alert-${color}">${text}</div>`;
-}
-
-document.getElementById('demoBtn').addEventListener('click', ()=>{
+/* demo button */
+demoBtn.addEventListener('click', ()=>{
   document.getElementById('owner').value = 'Anita';
   document.getElementById('area').value = 180;
   document.getElementById('location').value = 'Chennai, 600001';
@@ -112,6 +217,77 @@ document.getElementById('demoBtn').addEventListener('click', ()=>{
   document.getElementById('shade').value = 'partial';
   setMsg('Demo data filled. Click Analyze & Show Results','info');
 });
+
+/* clear form */
+clearBtn.addEventListener('click', ()=>{
+  submitForm.reset();
+  setMsg('');
+});
+
+/* back from result to form */
+backBtn.addEventListener('click', ()=>{
+  resultSection.style.display = 'none';
+  formSection.style.display = 'block';
+  // destroy map to avoid duplicate init when returning and recalculating
+  if(map){
+    try{ map.remove(); }catch(e){}
+    map = null;
+    marker = null;
+  }
+});
+
+/* print */
+printBtn.addEventListener('click', ()=> window.print());
+
+/* showResults: populate UI + init map */
+function showResults(data){
+  // populate metrics
+  document.getElementById('kwVal').innerText = data.kw.toFixed(2) + ' kW';
+  document.getElementById('kwhVal').innerText = data.annual.toLocaleString() + ' kWh';
+  document.getElementById('co2Val').innerText = data.co2.toFixed(2) + ' t/yr';
+  document.getElementById('moneyVal').innerText = '₹ ' + data.money.toLocaleString();
+  document.getElementById('ownerInfo').innerText = (data.owner ? data.owner + ' • ' : '') + (data.location || '—');
+
+  // input list
+  document.getElementById('inputList').innerHTML = `
+    <li>Area: <strong>${data.area} sq.ft</strong></li>
+    <li>Sun hours/day: <strong>${data.sunHours}</strong></li>
+    <li>Shade: <strong>${data.shade}</strong></li>
+    <li>Suitability score: <strong>${data.score}</strong></li>
+  `;
+
+  // badge
+  const badge = document.getElementById('suitabilityBadge');
+  const scoreText = document.getElementById('scoreText');
+  let label = 'Not Suitable', cls = 'suit-low';
+  if(data.score >= 75){ label = 'Highly Suitable'; cls = 'suit-high'; }
+  else if(data.score >= 50){ label = 'Suitable'; cls = 'suit-med'; }
+  badge.innerText = label; badge.className = 'suit-badge ' + cls;
+  scoreText.innerText = 'Suitability score: ' + data.score;
+
+  // switch view
+  formSection.style.display = 'none';
+  resultSection.style.display = 'block';
+  setMsg(''); // clear any messages
+
+  // init map (center on India default; we don't have geocoding)
+  setTimeout(()=> {
+    if(!map){
+      map = L.map('map', { zoomControl:true }).setView([20.5937,78.9629], 5);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap contributors' }).addTo(map);
+    } else {
+      map.invalidateSize();
+    }
+    // if user provided lat/lng (not in this demo) we could set marker; we use location text only
+    if(marker){
+      marker.remove();
+      marker = null;
+    }
+    // we will not geocode; show info popup at India center with location text
+    marker = L.marker([20.5937,78.9629]).addTo(map).bindPopup(`<strong>${data.owner || 'Rooftop'}</strong><br>${data.location || ''}`).openPopup();
+  }, 200);
+}
+
 </script>
 </body>
 </html>
