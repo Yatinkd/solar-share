@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SolarShare — Analysis Result</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root{--accent:#0d6f3a;--muted:#6b7280;--card-bg:#fff;--glass:rgba(255,255,255,0.85);}
+    body{background:linear-gradient(180deg,#f7fbf7 0%, #f0f5f3 100%);font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial;padding:28px;}
+    .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px;}
+    .brand{font-weight:800;color:var(--accent);letter-spacing:0.4px;}
+    .subtle{color:var(--muted);font-size:0.95rem;}
+    .card-ux{background:var(--card-bg);border-radius:14px;box-shadow:0 12px 30px rgba(12,40,20,0.06);padding:20px;}
+    .result-header{font-size:22px;font-weight:700;margin-bottom:6px;}
+    .result-sub{color:var(--muted);margin-bottom:12px;}
+    #map{height:360px;border-radius:10px;overflow:hidden;}
+    .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .metric{background:var(--glass);border-radius:12px;padding:14px;text-align:center;}
+    .metric .num{font-size:22px;font-weight:800;color:var(--accent);}
+    .metric .label{color:var(--muted);font-size:13px;margin-top:6px;}
+    .big-metric{background:linear-gradient(90deg,#fff 0%, #f8fffb 100%);border-radius:14px;padding:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+    .big-left .title{font-size:14px;color:var(--muted);} .big-left .value{font-size:28px;font-weight:800;color:#0b5dd7;margin-top:6px;}
+    .suit-badge{padding:8px 14px;border-radius:999px;font-weight:700;color:#fff;display:inline-block;}
+    .suit-high{background:linear-gradient(90deg,#0ea45a,#057a38);} .suit-med{background:linear-gradient(90deg,#f59e0b,#d97706);} .suit-low{background:linear-gradient(90deg,#ef4444,#b91c1c);}
+    .actions{margin-top:12px;display:flex;gap:10px;} .small-muted{color:var(--muted);font-size:0.9rem;}
+    @media (max-width:900px){.metrics{grid-template-columns:repeat(1,1fr);}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <div><div class="brand">SolarShare</div><div class="subtle">Client-only rooftop suitability</div></div>
+      <div><a href="index.html" class="btn btn-outline-secondary btn-sm">← Back</a><button id="printBtn" class="btn btn-sm btn-primary ms-2">Download Report</button></div>
+    </div>
+
+    <div class="card-ux mb-3">
+      <div class="result-header" id="title">Analysis Result</div>
+      <div class="result-sub" id="subtitle">Summary of rooftop potential & impact</div>
+
+      <div class="metrics mb-3">
+        <div class="metric"><div class="num" id="kwVal">— kW</div><div class="label">Estimated Capacity</div></div>
+        <div class="metric"><div class="num" id="kwhVal">— kWh</div><div class="label">Annual Energy</div></div>
+        <div class="metric"><div class="num" id="co2Val">— t/yr</div><div class="label">CO₂ Saved / year</div></div>
+      </div>
+
+      <div class="big-metric">
+        <div class="big-left"><div class="title">Estimated Money Saved (yearly)</div><div class="value" id="moneyVal">—</div></div>
+        <div class="text-end"><div id="suitabilityBadge" class="suit-badge suit-high">Suitable</div><div class="small-muted mt-1" id="scoreText">Suitability score: —</div></div>
+      </div>
+
+      <div class="actions">
+        <button id="contactBtn" class="btn btn-outline-success">Connect with a solar partner</button>
+        <button id="shareBtn" class="btn btn-outline-secondary">Share Result</button>
+        <button id="howBtn" class="btn btn-outline-info">How we calculated</button>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-lg-8">
+        <div class="card-ux">
+          <h6>Location & Visualization</h6>
+          <p class="small-muted">Map shows the rooftop location you provided (no geocoding — uses India center if not provided).</p>
+          <div id="map"></div>
+        </div>
+      </div>
+
+      <div class="col-lg-4">
+        <div class="card-ux">
+          <h6>Details</h6>
+          <div class="small-muted mb-2">Owner / location</div>
+          <div id="ownerInfo" style="font-weight:700; margin-bottom:8px;">—</div>
+
+          <div class="small-muted">Inputs</div>
+          <ul class="small-muted" id="inputList" style="padding-left:18px; margin-top:6px;"></ul>
+
+          <hr>
+          <h6>Why this matters</h6>
+          <p class="small-muted">Distributed rooftop solar reduces grid load, creates income for owners, and contributes directly to national renewable targets.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    function getParams(){
+      const p = new URLSearchParams(window.location.search);
+      return {
+        owner: p.get('owner') || '',
+        location: p.get('location') || '',
+        area: Number(p.get('area')) || 0,
+        kw: Number(p.get('kw')) || 0,
+        kwh: Number(p.get('kwh')) || 0,
+        co2: Number(p.get('co2')) || 0,
+        money: Number(p.get('money')) || 0,
+        lat: parseFloat(p.get('lat')) || null,
+        lng: parseFloat(p.get('lng')) || null,
+        score: Number(p.get('suit') || p.get('score') || 0)
+      };
+    }
+
+    const d = getParams();
+    document.getElementById('kwVal').innerText = d.kw ? d.kw.toFixed(2) + ' kW' : '—';
+    document.getElementById('kwhVal').innerText = d.kwh ? d.kwh.toLocaleString() + ' kWh' : '—';
+    document.getElementById('co2Val').innerText = d.co2 ? d.co2.toFixed(2) + ' t/yr' : '—';
+    document.getElementById('moneyVal').innerText = d.money ? '₹ ' + d.money.toLocaleString() : '—';
+    document.getElementById('ownerInfo').innerText = (d.owner ? d.owner + ' • ' : '') + (d.location || '—');
+
+    const inputList = document.getElementById('inputList');
+    inputList.innerHTML = `
+      <li>Area: <strong>${d.area} sq.ft</strong></li>
+      <li>Sun hours/day: <strong>${d.kwh ? ( (d.kwh/(d.kw*365*0.75||1)).toFixed(1) ) : '—' }</strong></li>
+      <li>Suitability score: <strong>${d.score}</strong></li>
+    `;
+
+    const badge = document.getElementById('suitabilityBadge');
+    const scoreText = document.getElementById('scoreText');
+    let label = 'Unsuitable', cls='suit-low';
+    if(d.score >= 75){ label='Highly Suitable'; cls='suit-high'; }
+    else if(d.score >= 50){ label='Suitable'; cls='suit-med'; }
+    else { label='Not Suitable'; cls='suit-low'; }
+    badge.innerText = label; badge.className = 'suit-badge ' + cls;
+    scoreText.innerText = 'Suitability score: ' + (d.score || '—');
+
+    const map = L.map('map', { zoomControl:true }).setView([d.lat || 20.5937, d.lng || 78.9629], d.lat ? 15 : 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
+    if(d.lat && d.lng){ L.marker([d.lat, d.lng]).addTo(map).bindPopup(`<strong>${d.owner || 'Rooftop'}</strong><br>${d.location || ''}`); }
+
+    document.getElementById('contactBtn').addEventListener('click', ()=> alert('We will connect you with a local solar partner (demo).'));
+    document.getElementById('shareBtn').addEventListener('click', ()=>{ navigator.clipboard.writeText(location.href).then(()=> alert('Result link copied to clipboard.')); });
+    document.getElementById('howBtn').addEventListener('click', ()=>{
+      const msg = `Formulas used:\n- kWpeak ≈ (area / 100) * 1.5\n- Annual kWh = kWpeak * sunHours * 365 * performance_ratio(0.75)\n- CO₂ saved (t/yr) = Annual kWh * 0.82 kgCO₂/kWh → convert to tonnes\n- Money saved = Annual kWh * tariff (₹ per kWh, demo uses ₹9).`;
+      alert(msg);
+    });
+    document.getElementById('printBtn').addEventListener('click', ()=> window.print());
+  </script>
+</body>
+</html>
